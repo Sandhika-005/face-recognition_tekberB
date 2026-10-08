@@ -1,67 +1,88 @@
 import cv2
 import numpy as np
+from PIL import Image
 import os
 
-def checkDataset(directory="dataset/"):
-    if os.path.exists(directory) and len(os.listdir(directory)) != 0:
-        return True
+
+def checkDataset(directory="dataset"):
+    if os.path.exists(directory):
+        if len(os.listdir(directory)) > 0:
+            return True
 
     return False
 
 
-def organizeDataset(path="dataset/"):
+def getImagesAndLabels(path):
 
     imagePaths = [
-        os.path.join(path, p)
-        for p in os.listdir(path)
+        os.path.join(path, f)
+        for f in os.listdir(path)
     ]
 
-    faces = []
-    ids = np.array([], dtype=int)
+    faceSamples = []
+    ids = []
 
-    for imagePath in imagePaths:
-
-        img = cv2.imread(
-            imagePath,
-            cv2.IMREAD_GRAYSCALE
-        )
-
-        filename = os.path.basename(imagePath)
-
-        # Format:
-        # Sandhika_1_1.jpg
-        # Dhana_2_1.jpg
-        # Yossi_3_1.jpg
-
-        person_id = int(
-            filename.split("_")[1]
-        )
-
-        faces.append(img)
-        ids = np.append(ids, person_id)
-
-    return faces, ids
-
-
-if not checkDataset():
-    print("Dataset not found")
-
-else:
-
-    recognizer = cv2.face.LBPHFaceRecognizer.create()
-
-    faceCascade = cv2.CascadeClassifier(
+    detector = cv2.CascadeClassifier(
         "haarcascade_frontalface_default.xml"
     )
 
+    for imagePath in imagePaths:
+
+        PIL_img = Image.open(
+            imagePath
+        ).convert("L")
+
+        img_numpy = np.array(
+            PIL_img,
+            "uint8"
+        )
+
+
+        filename = os.path.split(
+            imagePath
+        )[1]
+
+        id = int(
+            filename.split(".")[1]
+        )
+
+        faces = detector.detectMultiScale(
+            img_numpy
+        )
+
+        for (x, y, w, h) in faces:
+
+            faceSamples.append(
+                img_numpy[y:y+h, x:x+w]
+            )
+
+            ids.append(id)
+
+    return faceSamples, ids
+
+if not checkDataset():
+
+    print("Dataset tidak ditemukan.")
+
+else:
+
     print("Training faces...")
 
-    faces, ids = organizeDataset()
+    recognizer = cv2.face.LBPHFaceRecognizer.create()
 
-    recognizer.train(faces, ids)
+    faces, ids = getImagesAndLabels(
+        "dataset"
+    )
 
-    print("Training finished!")
+    recognizer.train(
+        faces,
+        np.array(ids)
+    )
 
-    recognizer.write("face-model.yml")
+    recognizer.write(
+        "face-model.yml"
+    )
 
-    print("Model saved as 'face-model.yml'")
+    print("\nTraining selesai!")
+    print("Model berhasil disimpan:")
+    print("face-model.yml")
